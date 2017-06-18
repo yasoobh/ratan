@@ -21,3 +21,7 @@
 /yarn-error.log
 
 .byebug_history
+Capfile
+config/deploy.rb
+config/database.yml
+config/deploy/*
