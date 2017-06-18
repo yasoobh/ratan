@@ -69,10 +69,41 @@ class ExpenseController < ApplicationController
   end
 
   def upload_expenses_raw
-    userId = params[:user_id]
+    deviceId = params[:device_id]
     expensesData = params[:expenses_data]
 
-    if (userId.nil? || expensesData.nil?)
+    if (deviceId.nil? || expensesData.nil?)
+      response = {'status' => 'HTTP 400 Bad Request'}
+      render :json => response.to_json and return
+    end
+
+    # expensesData = [
+    #   {
+    #     "sender_address" => "VKHDFC",
+    #     "message_content" => "You just spent Rs. 120 at Zomato!",
+    #     "message_time" => "2017-06-19 00:35:23"
+    #   },
+    #   {
+    #     "sender_address" => "VM-PAYTM",
+    #     "message_content" => "You spent Rs. 230 on Uber!",
+    #     "message_time" => "2017-06-16 13:03:12"
+    #   }
+    # ]
+
+    begin
+      expensesData.each { |ed|
+        senderAddress = ed["sender_address"]
+        messageContent = ed["message_content"]
+        messageTime = ed["message_time"]
+
+        @erd = Erd.new
+        @erd.sender_address = senderAddress
+        @erd.message_content = messageContent
+        @erd.message_time = messageTime
+        @erd.device_id = deviceId
+        @erd.save
+      }
+    rescue
       response = {'status' => 'HTTP 400 Bad Request'}
       render :json => response.to_json and return
     end
