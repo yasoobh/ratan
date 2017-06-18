@@ -1,0 +1,13 @@
+development:
+   adapter: mysql2
+   database: ratan_dev
+   username: root
+   password: ongbak3
+   host: localhost
+
+production:
+   adapter: mysql2
+   database: ratan_production
+   username: root
+   password: admin
+   host: localhost
