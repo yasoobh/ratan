@@ -24,4 +24,3 @@
 Capfile
 config/deploy.rb
 config/deploy/*
-config/database.yml
