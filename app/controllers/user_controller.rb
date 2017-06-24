@@ -3,13 +3,15 @@ require 'json'
 class UserController < ApplicationController
   def signup
     mobileNumber = params[:mobile_number]
-    name = params[:name]
 
+    if (!mobileNumber.nil?)
+      response = {'status' => 'success', 'responseCode' => 200, 'message' => 'Otp sent successfully!'}
+      begin
 
-    if (!name.nil? && !mobileNumber.nil?)
-      response = {'status' => 'HTTP 200 OK'}
+      rescue Exception => e
+      end
     else
-      response = {'status' => 'HTTP 400 Bad Request'}
+      response = {'status' => 'error', 'responseCode' => 400, 'message' => 'Received empty mobile number!'}
     end
     render :json => response.to_json
   end
@@ -18,7 +20,7 @@ class UserController < ApplicationController
     mobileNumber = params[:mobile_number]
 
     if (!mobileNumber.nil?)
-      response = {'status' => 'HTTP 200 OK'}
+      response = {'status' => 'success', 'responseCode' => 200, 'message' => 'Otp sent successfully!'}
     else
       response = {'status' => 'HTTP 400 Bad Request'}
     end
@@ -26,13 +28,29 @@ class UserController < ApplicationController
   end
 
   def otp_verification
+    name = params[:name]
     mobileNumber = params[:mobile_number]
     otp = params[:otp]
 
     if (!mobileNumber.nil? && !otp.nil?)
-      response = {'status' => 'HTTP 200 OK'}
+      if Otp.verify_otp(mobileNumber, otp)
+        begin
+          u = User.new
+          if (!name.nil?)
+            u.name = name
+          end
+          u.mobile_number = mobileNumber
+          u.save
+          response = {'status' => 'success', 'message' => 'User verified successfully!', 'responseCode' => 200, 'data' => {'user_id' => u.id}}
+        rescue Exception => e
+          p e
+          response = {'status' => 'error', 'responseCode' => 400, 'message' => 'Otp verification failed. Please try again!'}
+        end
+      else
+        response = {'status' => 'error', 'responseCode' => 400, 'message' => 'Otp verification failed. Please try again!'}
+      end
     else
-      response = {'status' => 'HTTP 400 Bad Request'}
+      response = {'status' => 'error', 'responseCode' => 400, 'message' => 'Otp verification failed. Please try again!'}
     end
     render :json => response.to_json
   end
