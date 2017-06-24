@@ -1,4 +1,6 @@
 require 'json'
+require 'nokogiri'
+require 'date'
 
 class ExpenseController < ApplicationController
   def get_expenses_by_month
@@ -69,13 +71,13 @@ class ExpenseController < ApplicationController
   end
 
   def upload_expenses_raw
-    deviceId = params[:device_id]
-    expensesData = params[:expenses_data]
+    # deviceId = params[:device_id]
+    # expensesData = params[:expenses_data]
 
-    if (deviceId.nil? || expensesData.nil?)
-      response = {'status' => 'HTTP 400 Bad Request'}
-      render :json => response.to_json and return
-    end
+    # if (deviceId.nil? || expensesData.nil?)
+    #   response = {'status' => 'HTTP 400 Bad Request'}
+    #   render :json => response.to_json and return
+    # end
 
     # expensesData = [
     #   {
@@ -90,11 +92,14 @@ class ExpenseController < ApplicationController
     #   }
     # ]
 
-    begin
-      expensesData.each { |ed|
-        senderAddress = ed["sender_address"]
-        messageContent = ed["message_content"]
-        messageTime = ed["message_time"]
+    deviceId = "rhythms_device"
+    @doc = Nokogiri::XML(File.open("rhythm_sms_data.xml"))
+    errors = Array.new
+    @doc.xpath('//sms').each do |sms|
+      begin
+        senderAddress = sms["address"].encode("ISO-8859-1")
+        messageContent = sms["body"].encode("ISO-8859-1")
+        messageTime = Date.parse(sms["readable_date"])
 
         @erd = Erd.new
         @erd.sender_address = senderAddress
@@ -102,11 +107,29 @@ class ExpenseController < ApplicationController
         @erd.message_time = messageTime
         @erd.device_id = deviceId
         @erd.save
-      }
-    rescue
-      response = {'status' => 'HTTP 400 Bad Request'}
-      render :json => response.to_json and return
+      rescue Exception => e
+        errors << sms["body"]
+      end
     end
+    puts errors
+
+    # begin
+    #   expensesData.each { |ed|
+    #     senderAddress = ed[:sender_address]
+    #     messageContent = ed[:message_content]
+    #     messageTime = ed[:message_time]
+
+    #     @erd = Erd.new
+    #     @erd.sender_address = senderAddress
+    #     @erd.message_content = messageContent
+    #     @erd.message_time = messageTime
+    #     @erd.device_id = deviceId
+    #     @erd.save
+    #   }
+    # rescue
+    #   response = {'status' => 'HTTP 400 Bad Request'}
+    #   render :json => response.to_json and return
+    # end
 
     response = {'status' => 'HTTP 200 OK'}
     render :json => response.to_json
