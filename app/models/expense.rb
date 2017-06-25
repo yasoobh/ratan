@@ -1,10 +1,8 @@
 class Expense < ApplicationRecord
 
-  @@pspShortMap = {
-    'HDFC Bank' => ['vmhdfcbk','vkhdfcbk','bhhdfcbk','amhdfcbk','adhdfcbk','vmhdfcmp','imhdfcbk','dmhdfcbk','mdhdfcbk','bwhdfcbk','mmhdfcbk','vkhdfcmp','idhdfcbk','rmhdfcbk','dzhdfcbk'],
-    'Kotak Mahindra Bank' => ['vm-kotakb','vk-kotakb','dm-kotakb','im-kotakb','id-kotakb','im-kotaks','vm-kotakm','vm-kotaks','vmkotakb','amkotakb','vkkotakb','imkotakb','vkkotaks','vmkotaks','dmkotakb','bhkotaks','bzkotaks','adkotaks','imkotaks','dmkotaks','hpkotaks','rmkotaks','amkotaks','idkotakb'],
-    'State Bank of India' => ['bz-sbiinb','bx-sbiinb','bz-atmsbi','vk-sbiinb','vmsbiacs','vk-cbssbi','vm-cbssbi','bzatmsbi','bx-atmsbi','vm-sbiinb','dm-sbiinb','bz-sbiacs','bpatmsbi','bp-sbiinb','bxatmsbi','vk-sbipsg','vmcbssbi','vk-atmsbi','tm-sbiacs','amsbiacs','vmsbibdp','bp-atmsbi','vksbiupi','vm-atmsbi','vkcbssbi','vm-sbiacs','amcbssbi','bx-sbiacs','amsbibnk','dm-sbibnk','vksbiotp','imcbssbi','vmsbibnk','vk-sbiotp','vk-sbiacs','vm-sbibnk','im-sbipsg','bxsbiacs','adsbibnk','amatmsbi','bpsbiacs','vkatmsbi','vm-sbipsg','vk-sbibnk','bz-sbibnk','bpsbiinb','dzsbibnk','vksbiacs','vksbibnk']
-  }
+  @@pspShortMap = PspShort.get_psp_shorts
+  @@merchantList = MerchantAlias.get_merchant_aliases
+  @@paymentMethodAliases = PaymentMethodAlias.get_payment_method_aliases
 
   # def process_raw_expenses
   #   probableRawTransactions = Hash.new
@@ -44,8 +42,36 @@ class Expense < ApplicationRecord
   #   end
   # end
 
+  def self.process_all_expenses_for_users
+    userIds = [6, 7, 8]
+    userIds.each {|userId|
+      self.process_all_expenses_for_user(userId)
+    }
+  end
+
+  def self.process_all_expenses_for_devices
+    deviceIds = ['yasoobs_device_1', 'rhythms_device_1', 'sagars_device_1']
+    deviceIds.each {|deviceId|
+      self.process_all_expenses_for_device(deviceId)
+    }
+  end
+
+  def self.process_all_expenses_for_user(userId)
+    devices = Device.where(user_id: userId)
+    devices.each { |device|
+      deviceId = device.device_id
+      process_all_expenses_for_device(deviceId)
+    }
+  end
+
   def self.process_all_expenses_for_device(deviceId)
     rawExpenses = Erd.where(device_id: deviceId)
+    deviceUser = Device.where(device_id: deviceId).select(:user_id).take
+    if !deviceUser.nil?
+      userId = deviceUser[:user_id]
+    else
+      return false
+    end
     processed = 0
     total = 0
     rawExpenses.each {|rawExpense|
@@ -54,27 +80,67 @@ class Expense < ApplicationRecord
       messageTime = rawExpense['message_time']
       messageSender = rawExpense['message_sender']
       messageId = rawExpense['message_id']
-      if self.process_raw_expense(messageSender, messageContent, messageTime)
+      if process_raw_expense(messageId, messageSender, messageContent, messageTime, userId)
         processed += 1
       end
     }
-    p (processed.to_f/total*100).round(2).to_s
+    return true
   end
 
-  def self.process_raw_expense(messageSender, messageContent, messageTime)
+  def self.process_raw_expense(messageId, messageSender, messageContent, messageTime, userId)
     if filter_message_content(messageContent.downcase)
-      psp = get_payment_service_provider_from_raw_expense(messageSender.downcase)
+      pspId = get_payment_service_provider_from_raw_expense(messageSender.downcase)
       moneySpent = get_money_from_raw_expense(messageContent.downcase)
       if moneySpent.nil?
         return false
       end
-      merchantName = get_merchant_name_from_raw_expense(messageContent)
-      if merchantName.nil?
+      merchantId = get_merchant_id_from_raw_expense(messageContent)
+      cardNumberEnding = get_card_info_from_raw_expense(messageContent.downcase)
+      paymentMethodId = get_payment_method_from_raw_expense(messageContent.downcase)
+      begin
+        exp = Expense.new
+        exp.user_id = userId
+        exp.merchant_id = merchantId
+        exp.amount = moneySpent
+        exp.payment_method_id = paymentMethodId
+        exp.card_number_ending = cardNumberEnding
+        exp.payment_service_provider_id = pspId
+        exp.transaction_time = messageTime
+        exp.raw_message_id = messageId
+        exp.save
+      rescue Exception => e
+        p e
         return false
       end
-      p psp.to_s + "," + moneySpent.to_s + "," + merchantName.to_s + "," + messageContent
+      # p psp.to_s + " $ " + moneySpent.to_s + " $ " + merchantId.to_s + " $ " + cardInfo.to_s + " $ " + paymentMethodId.to_s + " $ " + messageContent
       return true
     end
+  end
+
+  def self.get_card_info_from_raw_expense(messageContentDc)
+    card_info_1 = /x([0-9]{4,4})/
+    card_info_2 = /ending ([0-9]{4,4})/
+
+    (1..2).each { |i|
+      card_info_num = eval('card_info_'+i.to_s)
+      regexMatch = card_info_num.match(messageContentDc)
+      if not regexMatch.nil?
+        return regexMatch[1]
+      end
+    }
+    return nil
+  end
+
+  def self.get_payment_method_from_raw_expense(messageContentDc)
+    @@paymentMethodAliases.each { |paymentMethodId, paymentMethodAliases|
+      paymentMethodAliases.each { |paymentMethodAlias|
+        regexp = Regexp.new paymentMethodAlias
+        if regexp.match(messageContentDc)
+          return paymentMethodId
+        end
+      }
+    }
+    return nil
   end
 
   def self.get_payment_service_provider_from_raw_expense(messageSenderDc)
@@ -85,26 +151,35 @@ class Expense < ApplicationRecord
         end
       }
     }
-    return 'Others'
+    return nil
   end
 
   # /via (.*?) on/
   # /at [\+A-Z*?] on/ (with case match)
   # /at (a-z*?) on/ (without case match)
   # /netbanking/
-  def self.get_merchant_name_from_raw_expense(messageContent)
+  def self.get_merchant_id_from_raw_expense(messageContent)
     merchant_1 = /via (.*?) on/
-    merchant_2 = / at ([A-Za-z\+ ]*?) [(on)|(txn)|\.]/
+    merchant_2 = / at ([A-Za-z0-9\+&\(\)\-,*_ ]*?)(( on)|( txn)|\.)/
     merchant_3 = / at ([a-z ]*?) on/
-    merchant_4 = /(netbanking)/
-    merchant_5 = / at ([A-Za-z\+ ]*?)/
 
-    (1..4).each { |i|
+    (1..3).each { |i|
       merchant_num = eval('merchant_'+i.to_s)
       regexMatch = merchant_num.match(messageContent)
       if not regexMatch.nil?
-        return regexMatch[1]
+        return self.get_merchant_id(regexMatch[1])
       end
+    }
+    return nil
+  end
+
+  def self.get_merchant_id(merchantRegexMatch)
+    @@merchantList.each { |merchantId, merchantAliases|
+      merchantAliases.each { |merchantAlias|
+        if (merchantRegexMatch.downcase.include?(merchantAlias))
+          return merchantId
+        end
+      }
     }
     return nil
   end
@@ -117,25 +192,25 @@ class Expense < ApplicationRecord
   # Transaction of Rs 239 has been made
   # Rs 2500 withdrawn
   def self.get_money_from_raw_expense(messageContentDc)
-    money_0 = /(inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+)/
-    money_1 = /for (inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+).*debit/
-    money_2 = /debit.*for (inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+)/
-    money_3 = /(inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+) was withdrawn/
-    money_4 = /(inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+) was spent/
-    money_5 = /(inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+) is debited/
-    money_6 = /transaction of (inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+) has been made/
-    money_7 = /(inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+) withdrawn/
-    money_8 = /(inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+) has been debited/
-    money_9 = /for a purchase worth (inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+)/
-    money_10 = /for (inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+)/
-    money_11 = /(inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+) .*cash withdrawal/
-    money_12 = /cash withdrawal of (inr)|(r(upee)?s)[\. ]? ?([0-9\.,]+)/
+    money_0 = /((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+)/
+    money_1 = /for ((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+).*debit/
+    money_2 = /debit.*for ((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+)/
+    money_3 = /((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+) was withdrawn/
+    money_4 = /((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+) was spent/
+    money_5 = /((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+) is debited/
+    money_6 = /transaction of ((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+) has been made/
+    money_7 = /((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+) withdrawn/
+    money_8 = /((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+) has been debited/
+    money_9 = /for a purchase worth ((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+)/
+    money_10 = /for ((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+)/
+    money_11 = /((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+) .*cash withdrawal/
+    money_12 = /cash withdrawal of ((inr)|(r(upee)?s))[\. ]? ?([0-9\.,]+)/
 
     (1..12).each { |i|
       money_num = eval('money_'+i.to_s)
       regexMatch = money_num.match(messageContentDc)
       if not regexMatch.nil?
-        return regexMatch[4]
+        return regexMatch[5]
       end
     }
     return nil
