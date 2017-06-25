@@ -12,5 +12,7 @@ Rails.application.routes.draw do
   get 'user/signin'
 
   get 'user/otp_verification'
+
+  get 'category/get_all_categories'
   # For details on the DSL available within this file, see http://guides.rubyonrails.org/routing.html
 end
