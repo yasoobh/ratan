@@ -52,10 +52,22 @@ class UserController < ApplicationController
         if (!name.nil? && !deviceId.nil?)
           begin
             u = User.new
-            u.name = name
-            u.mobile_number = mobileNumber
-            u.device_id = deviceId
-            u.save
+            ActiveRecord::Base.transaction do
+              u.name = name
+              u.mobile_number = mobileNumber
+              u.device_id = deviceId
+              u.save
+
+              deviceManufacturer = params[:device_manufacturer]
+              deviceModel = params[:device_model]
+              d = Device.new
+              d.user_id = u.id
+              d.device_manufacturer = deviceManufacturer
+              d.device_model = deviceModel
+              d.device_id = deviceId
+              d.save
+            end
+
             response = {'status' => 'success', 'message' => 'User verified successfully!', 'responseCode' => 200, 'data' => {'user_id' => u.id}}
             render :json => response.to_json and return
           rescue Exception => e
