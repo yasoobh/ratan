@@ -79,52 +79,26 @@ class ExpenseController < ApplicationController
       render :json => response.to_json and return
     end
 
-    # deviceId = "yasoobs_device_1"
-    # @doc = Nokogiri::XML(File.open("yasoob_sms_data.xml"))
-    # errors = Array.new
-    # iter = 0
-    # saved = 0
-    # @doc.xpath('//sms').each { |sms|
-    #   begin
-    #     iter += 1
-    #     messageSender = sms["address"].encode("ISO-8859-1")
-    #     messageContent = sms["body"].encode("ISO-8859-1")
-    #     messageTime = Date.parse(sms["readable_date"])
-    #     messageId = sms["date"]
-
-    #     erd = Erd.new
-    #     erd.message_sender = messageSender
-    #     erd.message_content = messageContent
-    #     erd.message_time = messageTime
-    #     erd.message_id = messageId
-    #     erd.device_id = deviceId
-    #     erd.save
-    #     saved += 1
-    #   rescue Exception => e
-    #     errors << e
-    #     errors << sms["body"]
-    #   end
-    # }
-    # p errors
-
+    # deviceId = "rhythms_device_1"
+    @doc = Nokogiri::XML(File.open("sagar_sms_data.xml"))
     errors = Array.new
     iter = 0
     saved = 0
-    expensesData.each { |ed|
-      iter += 1
+    @doc.xpath('//sms').each { |sms|
       begin
-        messageSender = ed[:message_sender]
-        messageId = ed[:message_id]
-        messageContent = ed[:message_content]
-        messageTime = ed[:message_time]
+        iter += 1
+        messageSender = sms["address"].encode("ISO-8859-1")
+        messageContent = sms["body"].encode("ISO-8859-1")
+        messageTime = Date.parse(sms["readable_date"])
+        messageId = sms["date"]
 
-        @erd = Erd.new
-        @erd.device_id = deviceId
-        @erd.message_id = messageId
-        @erd.message_sender = messageSender
-        @erd.message_content = messageContent
-        @erd.message_time = messageTime
-        @erd.save
+        erd = Erd.new
+        erd.message_sender = messageSender
+        erd.message_content = messageContent
+        erd.message_time = messageTime
+        erd.message_id = messageId
+        erd.device_id = deviceId
+        erd.save
         saved += 1
       rescue Exception => e
         errors << e
@@ -132,6 +106,32 @@ class ExpenseController < ApplicationController
       end
     }
     p errors
+
+    # errors = Array.new
+    # iter = 0
+    # saved = 0
+    # expensesData.each { |ed|
+    #   iter += 1
+    #   begin
+    #     messageSender = ed[:message_sender]
+    #     messageId = ed[:message_id]
+    #     messageContent = ed[:message_content]
+    #     messageTime = ed[:message_time]
+
+    #     @erd = Erd.new
+    #     @erd.device_id = deviceId
+    #     @erd.message_id = messageId
+    #     @erd.message_sender = messageSender
+    #     @erd.message_content = messageContent
+    #     @erd.message_time = messageTime
+    #     @erd.save
+    #     saved += 1
+    #   rescue Exception => e
+    #     errors << e
+    #     errors << sms["body"]
+    #   end
+    # }
+    # p errors
 
     percentageSaved = (saved.to_f/iter*100).round(2)
     response = {'status' => 'success', 'responseCode' => 200, 'message' => percentageSaved.to_s + '% SMSs inserted successfully!'}
