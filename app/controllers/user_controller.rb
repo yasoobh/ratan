@@ -64,7 +64,7 @@ class UserController < ApplicationController
         else
           u = User.where("mobile_number = ?", mobileNumber).take
           if not u.nil?
-            response = {'status' => 'success', 'message' => 'User verified successfully!', 'responseCode' => 200, 'data' => {'user_id' => u.id}}
+            response = {'status' => 'success', 'message' => 'User verified successfully!', 'responseCode' => 200, 'data' => {'user_id' => u.id, 'name' => u.name}}
             render :json => response.to_json and return
           end
         end
