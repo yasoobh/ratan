@@ -128,7 +128,6 @@ class ExpenseController < ApplicationController
         saved += 1
       rescue Exception => e
         errors << e
-        errors << sms["body"]
       end
     }
     p errors
