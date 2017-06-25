@@ -71,67 +71,70 @@ class ExpenseController < ApplicationController
   end
 
   def upload_expenses_raw
-    # deviceId = params[:device_id]
-    # expensesData = params[:expenses_data]
+    deviceId = params[:device_id]
+    expensesData = params[:expenses_data]
 
-    # if (deviceId.nil? || expensesData.nil?)
-    #   response = {'status' => 'HTTP 400 Bad Request'}
-    #   render :json => response.to_json and return
-    # end
+    if (deviceId.nil? || expensesData.nil?)
+      response = {'status' => 'error', 'responseCode' => 400, 'message' => 'Malformed request. Some parameters are missing!'}
+      render :json => response.to_json and return
+    end
 
-    # expensesData = [
-    #   {
-    #     "sender_address" => "VKHDFC",
-    #     "message_content" => "You just spent Rs. 120 at Zomato!",
-    #     "message_time" => "2017-06-19 00:35:23"
-    #   },
-    #   {
-    #     "sender_address" => "VM-PAYTM",
-    #     "message_content" => "You spent Rs. 230 on Uber!",
-    #     "message_time" => "2017-06-16 13:03:12"
-    #   }
-    # ]
+    # deviceId = "yasoobs_device_1"
+    # @doc = Nokogiri::XML(File.open("yasoob_sms_data.xml"))
+    # errors = Array.new
+    # iter = 0
+    # saved = 0
+    # @doc.xpath('//sms').each { |sms|
+    #   begin
+    #     iter += 1
+    #     messageSender = sms["address"].encode("ISO-8859-1")
+    #     messageContent = sms["body"].encode("ISO-8859-1")
+    #     messageTime = Date.parse(sms["readable_date"])
+    #     messageId = sms["date"]
 
-    deviceId = "rhythms_device"
-    @doc = Nokogiri::XML(File.open("rhythm_sms_data.xml"))
+    #     erd = Erd.new
+    #     erd.message_sender = messageSender
+    #     erd.message_content = messageContent
+    #     erd.message_time = messageTime
+    #     erd.message_id = messageId
+    #     erd.device_id = deviceId
+    #     erd.save
+    #     saved += 1
+    #   rescue Exception => e
+    #     errors << e
+    #     errors << sms["body"]
+    #   end
+    # }
+    # p errors
+
     errors = Array.new
-    @doc.xpath('//sms').each do |sms|
+    iter = 0
+    saved = 0
+    expensesData.each { |ed|
+      iter += 1
       begin
-        senderAddress = sms["address"].encode("ISO-8859-1")
-        messageContent = sms["body"].encode("ISO-8859-1")
-        messageTime = Date.parse(sms["readable_date"])
+        messageSender = ed[:message_sender]
+        messageId = ed[:message_id]
+        messageContent = ed[:message_content]
+        messageTime = ed[:message_time]
 
         @erd = Erd.new
-        @erd.sender_address = senderAddress
+        @erd.device_id = deviceId
+        @erd.message_id = messageId
+        @erd.message_sender = messageSender
         @erd.message_content = messageContent
         @erd.message_time = messageTime
-        @erd.device_id = deviceId
         @erd.save
+        saved += 1
       rescue Exception => e
+        errors << e
         errors << sms["body"]
       end
-    end
-    puts errors
+    }
+    p errors
 
-    # begin
-    #   expensesData.each { |ed|
-    #     senderAddress = ed[:sender_address]
-    #     messageContent = ed[:message_content]
-    #     messageTime = ed[:message_time]
-
-    #     @erd = Erd.new
-    #     @erd.sender_address = senderAddress
-    #     @erd.message_content = messageContent
-    #     @erd.message_time = messageTime
-    #     @erd.device_id = deviceId
-    #     @erd.save
-    #   }
-    # rescue
-    #   response = {'status' => 'HTTP 400 Bad Request'}
-    #   render :json => response.to_json and return
-    # end
-
-    response = {'status' => 'HTTP 200 OK'}
+    percentageSaved = (saved.to_f/iter*100).round(2)
+    response = {'status' => 'success', 'responseCode' => 200, 'message' => percentageSaved.to_s + '% SMSs inserted successfully!'}
     render :json => response.to_json
   end
 end
