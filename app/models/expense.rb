@@ -167,7 +167,7 @@ class Expense < ApplicationRecord
       merchant_num = eval('merchant_'+i.to_s)
       regexMatch = merchant_num.match(messageContent)
       if not regexMatch.nil?
-        return self.get_merchant_id(regexMatch[1])
+        return regexMatch[1]
       end
     }
     return nil

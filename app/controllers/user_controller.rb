@@ -55,7 +55,6 @@ class UserController < ApplicationController
             ActiveRecord::Base.transaction do
               u.name = name
               u.mobile_number = mobileNumber
-              u.device_id = deviceId
               u.save
 
               deviceManufacturer = params[:device_manufacturer]
